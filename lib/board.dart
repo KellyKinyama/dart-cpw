@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:dart_cpw/piece.dart';
 
+import 'uci_parser.dart';
+
 class Board {
   bool whiteKingsideCastle = true;
   bool whiteQueensideCastle = true;
@@ -19,17 +21,29 @@ class Board {
   static const int fileMask = 0x07;
   static const String files = "abcdefgh";
 
+  Color sideToMove = Color.WHITE;
+
   // Checks if a square is off the board
   bool isOffBoard(int sq0x88) {
     return (sq0x88 & 0x88) != 0;
   }
 
   Board() {
+    sideToMove = Color.WHITE;
+    _initializeBoard();
+    _setupInitialPieces();
+  }
+
+  void init() {
+    sideToMove = Color.WHITE;
+    pieces = List.filled(128, null); // 128 squares (null = empty)
+    squares = List.filled(128, false); // False = illegal, True = legal
     _initializeBoard();
     _setupInitialPieces();
   }
 
   void _initializeBoard() {
+    sideToMove = Color.WHITE;
     for (int index = 0; index < 128; index++) {
       if ((index & 0x88) == 0) {
         squares[index] = true; // Legal squares
@@ -119,6 +133,20 @@ class Board {
   // Extracts rank (0-7) from 0x88 index
   int rankFrom0x88(int sq0x88) {
     return (sq0x88 & rankMask) >> 4;
+  }
+
+  List<int> generalPseudoMoves() {
+    List<int> moves = [];
+
+    for (int index = 0; index < 128; index++) {
+      if (pieces[index] == null) {
+        continue;
+      } else if (pieces[index]!.color != sideToMove) {
+        continue;
+      }
+      moves.addAll(generateMoves(index));
+    }
+    return moves;
   }
 
   List<int> generateMoves(int index) {
@@ -385,7 +413,6 @@ class Board {
         piece.color == Color.BLACK &&
         rankFrom0x88(from) == 6 &&
         rankFrom0x88(to) == 4) {
-      print("pawn move from: ${rankFrom0x88(from)}");
       if (!isOffBoard(to + 1) &&
           rankFrom0x88(to + 1) == 4 &&
           pieces[to + 1] != null &&
@@ -416,7 +443,6 @@ class Board {
         piece.color == Color.WHITE &&
         rankFrom0x88(from) == 1 &&
         rankFrom0x88(to) == 3) {
-      print("pawn move from: ${rankFrom0x88(from)}");
       if (!isOffBoard(to + 1) &&
           rankFrom0x88(to + 1) == 3 &&
           pieces[to + 1] != null &&
@@ -585,15 +611,15 @@ void main() {
 
     if (input == null) continue;
 
-    String strFrom = "${input[0]}${input[1]}";
+    // String strFrom = "${input[0]}${input[1]}";
 
-    String strTo = "${input[2]}${input[3]}";
+    // String strTo = "${input[2]}${input[3]}";
 
-    int? fromSq = board.algebraicTo0x88(strFrom);
+    // int? fromSq = board.algebraicTo0x88(strFrom);
 
-    int? fromTosSq = board.algebraicTo0x88(strTo);
+    // int? fromTosSq = board.algebraicTo0x88(strTo);
 
-    board.makeMove(fromSq!, fromTosSq!);
+    // board.makeMove(fromSq!, fromTosSq!);
     board.printBoard();
 
     // int? sq0x88 = board.algebraicTo0x88(notation);
@@ -606,27 +632,30 @@ void main() {
     //       'File: ${board.fileFrom0x88(sq0x88)}, Rank: ${board.rankFrom0x88(sq0x88)}');
     // }
 
-    // switch (input) {
-    //   case "uci":
-    //     print("id name DartChess");
-    //     print("id author YourName");
-    //     print("uciok");
-    //     break;
-    //   case "isready":
-    //     print("readyok");
-    //     break;
-    //   case "quit":
-    //     exit(0);
+    switch (input) {
+      case "uci":
+        print("id name DartChess");
+        print("id author YourName");
+        print("uciok");
+        break;
+      case "isready":
+        print("readyok");
+        break;
+      case "quit":
+        exit(0);
 
-    //   case "move":
-    //   default:
-    //     if (input.startsWith("position")) {
-    //       print("Position command received: $input");
-    //     } else if (input.startsWith("go")) {
-    //       print("Go command received: $input");
-    //     } else {
-    //       print("Unknown command: $input");
-    //     }
-    // }
+      case "move":
+      default:
+        if (input.startsWith("position")) {
+          print("Position command received: $input");
+
+          UCIParser.parsePosition(board, input);
+        } else if (input.startsWith("go")) {
+          print("Go command received: $input");
+          UCIParser.parseGoCommand(board, input);
+        } else {
+          print("Unknown command: $input");
+        }
+    }
   }
 }
