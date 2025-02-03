@@ -1,0 +1,75 @@
+[Settings]
+TournamentName=afwerf.at
+Type=0
+CurrSwissRound=0
+Rounds=10
+CurrentPair=1
+CurrentRound=1
+Level=5 -1\5/-1#5@-1|5
+[Options]
+QuitAfterTournament=0
+ShutDownAfterTournament=0
+RestartEngines=0
+RepeatStartPosition=1
+Startposition=0
+Variant=0
+StartPGNEPD=
+Resign=1
+ResignValue=-900
+MaxGameLength=250
+EarlyDrawFromMove=9999
+TablebaseDraw=0
+Autoflag=1
+Ponder=0
+AutoRotateInGautlet=1
+RutschSystem=1
+RestartArenaAfterGamesValue=20
+RestartArenaAtHour1=0
+RestartArenaAtHourValue=2
+ShutdownComputerAfterGames1=0
+ShutdownComputerAfterGamesValue=10
+[Save]
+SaveGamesPGN=1
+SaveIncompleteGamesPGN=1
+PGNFile=C:\executables\arena_3.5.1\Arena.pgn
+Protocolfile=Logfile001.log
+TurTabTextfile=C:\executables\arena_3.5.1\Tournaments\Arena.txt
+TurTabHTMLfile=C:\executables\arena_3.5.1\Tournaments\Arena.html
+SaveTurTabText=1
+SaveTurTabHTML=1
+HTMLuseCountry=0
+HTMLuseFlags=0
+HTMLuseEnglish=0
+HTMLshortResults=0
+HTMLonlyPoints=0
+HTMLFlagsFromWebsite=0
+HTMLshowPGNfilename=1
+HTMLshowBenchmark=0
+PGNwebsite=
+HTMLWinPercent=0
+HTMLStartELO=0
+HTMLShowConditions=0
+HTMLConditions=
+HTMLTopLineColorized=0
+HTMLTableTopLineColor=6737151
+SaveGamesFCH=0
+FCHdir=
+FCHnames=
+[Data]
+LastPGNEPDindex=1
+LastGameDate=2025.02.03
+LastGameTime=14:53:08
+Country=United States
+Site=IGLINTERNS5
+Hardware=Intel(R) Core(TM) i5-10500T CPU @ 2.30GHz with 7.8 GB Memory
+OS=Windows 10 Enterprise Professional (Build 9200) 64 bit
+Website=
+E-Mail=
+ArenaVersion=Arena 3.5.1
+FirstGameDate=2025.02.03
+FirstGameTime=14:50:52
+[PairingResults]
+Board ------ SOS 5.1 for Arena=0?
+[Participants]
+Engine1=Board
+Engine2=SOS 5.1 for Arena

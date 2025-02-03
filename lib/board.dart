@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:math';
 
+import 'package:dart_cpw/gameline.dart';
 import 'package:dart_cpw/piece.dart';
 
+import 'move.dart';
+import 'search.dart';
 import 'uci_parser.dart';
 
 class Board {
@@ -10,18 +14,26 @@ class Board {
   bool blackKingsideCastle = true;
   bool blackQueensideCastle = true;
 
-  bool whiteCanEnPassant = false; // White's en passant opportunity
-  bool blackCanEnPassant = false; // Black's en passant opportunity
+  bool whiteCanPass = false; // White's en passant opportunity
+  bool blackCanPass = false; // Black's en passant opportunity
 
   List<Piece?> pieces = List.filled(128, null); // 128 squares (null = empty)
   List<bool> squares = List.filled(128, false); // False = illegal, True = legal
+
+  Map<String, Move> rootMoves = {};
 
   static const int boardSize = 128;
   static const int rankMask = 0x70;
   static const int fileMask = 0x07;
   static const String files = "abcdefgh";
 
+  int whiteKingSquare = 0x04;
+  int blackKingSquare = 0x74;
+
+  List<GameLineRecord?> gameLine = [];
+
   Color sideToMove = Color.WHITE;
+  int endOfSearch = 0;
 
   // Checks if a square is off the board
   bool isOffBoard(int sq0x88) {
@@ -62,6 +74,8 @@ class Board {
     placePiece(0x06, Piece(7, PieceType.KNIGHT, Color.WHITE));
     placePiece(0x07, Piece(8, PieceType.ROOK, Color.WHITE));
 
+    whiteKingSquare = 0x04;
+
     // White pawns
     for (int i = 0; i < 8; i++) {
       placePiece(0x10 + i, Piece(9 + i, PieceType.PAWN, Color.WHITE));
@@ -76,6 +90,8 @@ class Board {
     placePiece(0x75, Piece(22, PieceType.BISHOP, Color.BLACK));
     placePiece(0x76, Piece(23, PieceType.KNIGHT, Color.BLACK));
     placePiece(0x77, Piece(24, PieceType.ROOK, Color.BLACK));
+
+    blackKingSquare = 0x74;
 
     // Black pawns
     for (int i = 0; i < 8; i++) {
@@ -135,8 +151,15 @@ class Board {
     return (sq0x88 & rankMask) >> 4;
   }
 
-  List<int> generalPseudoMoves() {
-    List<int> moves = [];
+  String algebraicFromSquare(int square) {
+    int file = fileFrom0x88(square); // Extract file (0-7)
+    int rank = rankFrom0x88(square); // Extract rank (0-7)
+
+    return '${String.fromCharCode('a'.codeUnitAt(0) + file)}${rank + 1}';
+  }
+
+  List<Move> generalPseudoMoves() {
+    List<Move> pMoves = [];
 
     for (int index = 0; index < 128; index++) {
       if (pieces[index] == null) {
@@ -144,9 +167,12 @@ class Board {
       } else if (pieces[index]!.color != sideToMove) {
         continue;
       }
-      moves.addAll(generateMoves(index));
+      List<int> moves = generateMoves(index);
+      for (var move in moves) {
+        pMoves.add(Move(index, move));
+      }
     }
-    return moves;
+    return pMoves;
   }
 
   List<int> generateMoves(int index) {
@@ -190,7 +216,9 @@ class Board {
         (color == Color.WHITE) ? 16 : -16; // White moves up, black moves down
 
     int front = index + direction;
-    if (squares[front] && pieces[front] == null) {
+    if ((front >= 0 && front < 128) &&
+        squares[front] &&
+        pieces[front] == null) {
       moves.add(front);
 
       // Double move from starting position
@@ -216,28 +244,32 @@ class Board {
       // White pawn can en passant (if it's on the 5th rank)
       int leftEnPassant = front - 1;
       int rightEnPassant = front + 1;
-      if (pieces[leftEnPassant]?.type == PieceType.PAWN &&
-          pieces[leftEnPassant]?.color == Color.BLACK &&
-          blackCanEnPassant) {
+      if (pieces[leftEnPassant] != null &&
+          pieces[leftEnPassant]!.type == PieceType.PAWN &&
+          pieces[leftEnPassant]!.color == Color.BLACK &&
+          blackCanPass) {
         moves.add(front - 16); // Capture to the left
       }
-      if (pieces[rightEnPassant]?.type == PieceType.PAWN &&
-          pieces[rightEnPassant]?.color == Color.BLACK &&
-          blackCanEnPassant) {
+      if (pieces[rightEnPassant] != null &&
+          pieces[rightEnPassant]!.type == PieceType.PAWN &&
+          pieces[rightEnPassant]!.color == Color.BLACK &&
+          blackCanPass) {
         moves.add(front - 16); // Capture to the right
       }
     } else if (color == Color.BLACK && index >= 72 && index <= 79) {
       // Black pawn can en passant (if it's on the 4th rank)
       int leftEnPassant = front - 1;
       int rightEnPassant = front + 1;
-      if (pieces[leftEnPassant]?.type == PieceType.PAWN &&
-          pieces[leftEnPassant]?.color == Color.WHITE &&
-          whiteCanEnPassant) {
+      if (pieces[leftEnPassant] != null &&
+          pieces[leftEnPassant]!.type == PieceType.PAWN &&
+          pieces[leftEnPassant]!.color == Color.WHITE &&
+          whiteCanPass) {
         moves.add(front + 16); // Capture to the left
       }
-      if (pieces[rightEnPassant]?.type == PieceType.PAWN &&
-          pieces[rightEnPassant]?.color == Color.WHITE &&
-          whiteCanEnPassant) {
+      if (pieces[rightEnPassant] != null &&
+          pieces[rightEnPassant]!.type == PieceType.PAWN &&
+          pieces[rightEnPassant]!.color == Color.WHITE &&
+          whiteCanPass) {
         moves.add(front + 16); // Capture to the right
       }
     }
@@ -297,7 +329,9 @@ class Board {
       int target = index + offset;
       if ((target & 0x88) == 0 &&
           (pieces[target] == null || pieces[target]!.color != color)) {
+        //if (!_isSquareAttacked(target, color)) {
         moves.add(target);
+        //}
       }
     }
 
@@ -354,39 +388,62 @@ class Board {
     return false;
   }
 
+  bool inCheck() {
+    int index;
+    if (sideToMove == Color.WHITE) {
+      index = blackKingSquare;
+    } else {
+      index = whiteKingSquare;
+    }
+
+    for (int i = 0; i < 128; i++) {
+      if ((i & 0x88) != 0 ||
+          pieces[i] == null ||
+          pieces[i]!.color == sideToMove) {
+        continue;
+      }
+
+      List<int> enemyMoves = generateMoves(i);
+      if (enemyMoves.contains(index)) return true;
+    }
+    return false;
+  }
+
   int? enpassantSquare;
   int? enpassantPieceSquare;
+
   void makeMove(int from, int to) {
     Piece? piece = pieces[from];
     if (piece == null) return;
 
-    // En Passant logic
-    if (piece.type == PieceType.PAWN && (from - to).abs() == 16) {
-      // Pawn moves two squares forward
-      if (piece.color == Color.WHITE) {
-        whiteCanEnPassant = true;
-      } else if (piece.color == Color.BLACK) {
-        blackCanEnPassant = true;
-      }
+    if (gameLine.isEmpty || gameLine.length < endOfSearch + 1) {
+      gameLine.add(GameLineRecord(
+          Move(from, to),
+          whiteKingsideCastle,
+          whiteQueensideCastle,
+          blackKingsideCastle,
+          blackQueensideCastle,
+          enpassantSquare,
+          enpassantPieceSquare,
+          0));
+    } else {
+      gameLine[endOfSearch] = (GameLineRecord(
+          Move(from, to),
+          whiteKingsideCastle,
+          whiteQueensideCastle,
+          blackKingsideCastle,
+          blackQueensideCastle,
+          enpassantSquare,
+          enpassantPieceSquare,
+          0));
     }
 
-    // En Passant capture
-    // if (piece.type == PieceType.PAWN && (to - from).abs() == 1) {
-    //   if (piece.color == Color.WHITE &&
-    //       blackCanEnPassant &&
-    //       pieces[to] == null) {
-    //     pieces[to - 16] = null; // Capture the opponent's pawn en passant
-    //     whiteCanEnPassant = false;
-    //   } else if (piece.color == Color.BLACK &&
-    //       whiteCanEnPassant &&
-    //       pieces[to] == null) {
-    //     pieces[to + 16] = null; // Capture the opponent's pawn en passant
-    //     blackCanEnPassant = false;
-    //   }
-    // }
+    //gameLine[endOfSearch].key = board.hashkey;
+
+    gameLine[endOfSearch]!.fillPieces(pieces);
 
     // En Passant capture
-    if (piece.type == PieceType.PAWN && to == enpassantSquare) {
+    if (piece.type == PieceType.PAWN && to == enpassantSquare && whiteCanPass) {
       //if (rankFrom0x88(to) == 2) {
       print("Enpassant capture: ${to.toRadixString(16)}");
       print("Enpassant capture: ${enpassantSquare!.toRadixString(16)}");
@@ -394,19 +451,23 @@ class Board {
       print("Enpassant capture: ${enpassantPieceSquare!.toRadixString(16)}");
       print("Enpassant capture: ${pieces[enpassantPieceSquare!]}");
       pieces[enpassantPieceSquare!] = null;
-      // }
-      //pieces[enpassantPieceSquare!] != null;
-      // if (piece.color == Color.WHITE &&
-      //     blackCanEnPassant &&
-      //     pieces[to] == null) {
-      // pieces[to - 16] = null; // Capture the opponent's pawn en passant
-      // whiteCanEnPassant = false;
-      // } else if (piece.color == Color.BLACK &&
-      //     whiteCanEnPassant &&
-      //     pieces[to] == null) {
-      //   pieces[to + 16] = null; // Capture the opponent's pawn en passant
-      //   blackCanEnPassant = false;
-      // }
+      whiteCanPass = false;
+      enpassantSquare = null;
+      enpassantPieceSquare = null;
+    }
+
+    // En Passant capture
+    if (piece.type == PieceType.PAWN && to == enpassantSquare && blackCanPass) {
+      //if (rankFrom0x88(to) == 2) {
+      // print("Enpassant capture: ${to.toRadixString(16)}");
+      // print("Enpassant capture: ${enpassantSquare!.toRadixString(16)}");
+      // print("Enpassant capture: ${enpassantSquare!.toRadixString(16)}");
+      // print("Enpassant capture: ${enpassantPieceSquare!.toRadixString(16)}");
+      // print("Enpassant capture: ${pieces[enpassantPieceSquare!]}");
+      pieces[enpassantPieceSquare!] = null;
+      blackCanPass = false;
+      enpassantSquare = null;
+      enpassantPieceSquare = null;
     }
 
     if (piece.type == PieceType.PAWN &&
@@ -420,10 +481,12 @@ class Board {
           pieces[to + 1]!.color == Color.WHITE) {
         enpassantSquare = to + 16;
         enpassantPieceSquare = to;
-        print(
-            'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
-        print(
-            "${pieces[to + 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
+
+        whiteCanPass = true;
+        // print(
+        //     'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
+        // print(
+        //     "${pieces[to + 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
       }
 
       if (!isOffBoard(to - 1) &&
@@ -433,11 +496,12 @@ class Board {
           pieces[to - 1]!.color == Color.WHITE) {
         enpassantSquare = to + 16;
         enpassantPieceSquare = to;
+        whiteCanPass = true;
 
-        print(
-            'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
-        print(
-            "${pieces[to - 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
+        // print(
+        //     'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
+        // print(
+        //     "${pieces[to - 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
       }
     } else if (piece.type == PieceType.PAWN &&
         piece.color == Color.WHITE &&
@@ -450,13 +514,14 @@ class Board {
           pieces[to + 1]!.color == Color.BLACK) {
         enpassantSquare = to - 16;
         enpassantPieceSquare = to;
+        blackCanPass = true;
 
-        print("empassant: e4d3");
+        // print("empassant: e4d3");
 
-        print(
-            'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
-        print(
-            "${pieces[to + 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
+        // print(
+        //     'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
+        // print(
+        //     "${pieces[to + 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
       }
 
       if (!isOffBoard(to - 1) &&
@@ -466,11 +531,12 @@ class Board {
           pieces[to - 1]!.color == Color.BLACK) {
         enpassantSquare = to - 16;
         enpassantPieceSquare = to;
+        blackCanPass = true;
 
-        print(
-            'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
-        print(
-            "${pieces[to - 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
+        // print(
+        //     'Enpassant square: 0x88: 0x${enpassantSquare!.toRadixString(16)}');
+        // print(
+        //     "${pieces[to - 1]!.color} pawn move from: ${(to + 1).toRadixString(16)} can empassant");
       }
     }
 
@@ -518,10 +584,66 @@ class Board {
     // Reset en passant flags after each move
     if (piece.type == PieceType.PAWN) {
       if (piece.color == Color.WHITE) {
-        blackCanEnPassant = false; // Black can't en passant after White moves
+        blackCanPass = false; // Black can't en passant after White moves
       } else {
-        whiteCanEnPassant = false; // White can't en passant after Black moves
+        whiteCanPass = false; // White can't en passant after Black moves
       }
+    }
+
+    if (sideToMove == Color.WHITE) {
+      sideToMove = Color.BLACK;
+    } else {
+      sideToMove = Color.WHITE;
+    }
+
+    if (piece.type == PieceType.KING) {
+      if (piece.color == Color.WHITE) {
+        whiteKingSquare = to;
+      } else {
+        blackKingSquare = to;
+      }
+    }
+
+    gameLine[endOfSearch]!.whiteKingSquare = whiteKingSquare;
+    gameLine[endOfSearch]!.blackKingSquare = blackKingSquare;
+
+    endOfSearch++;
+
+    if (endOfSearch == 0) {
+      throw "end of search cannot be incremented to 0";
+    }
+  }
+
+  void unmakeMove() {
+    // Undo the last move by accessing the game line and restoring previous state
+
+    GameLineRecord lastMove = gameLine[endOfSearch - 1]!;
+    //print("game line record: $lastMove");
+
+    // Restore the castling rights
+    whiteKingsideCastle = lastMove.whiteKingsideCastle;
+    whiteQueensideCastle = lastMove.whiteQueensideCastle;
+    blackKingsideCastle = lastMove.blackKingsideCastle;
+    blackQueensideCastle = lastMove.blackQueensideCastle;
+
+    whiteKingSquare = lastMove.whiteKingSquare;
+
+    blackKingSquare = lastMove.blackKingSquare;
+
+    // Restore the en passant square
+    enpassantSquare = lastMove.enpassantSquare;
+    enpassantPieceSquare = lastMove.enpassantPieceSquare;
+
+    // Update en passant abilities (based on previous state)
+
+    fillPieces(lastMove.pieces);
+    // Restore the side to move
+    sideToMove = sideToMove == Color.WHITE ? Color.BLACK : Color.WHITE;
+
+    // Decrease the end of search index
+    endOfSearch--;
+    if (endOfSearch == -1) {
+      throw ("End of search error: $endOfSearch");
     }
   }
 
@@ -548,6 +670,17 @@ class Board {
     String rank = (8 - row).toString();
 
     return file + rank;
+  }
+
+  void fillPieces(List<Piece?> boardPieces) {
+    for (int x = 0; x < 128; x++) {
+      if (boardPieces[x] == null) {
+        pieces[x] = null;
+        continue;
+      }
+
+      pieces[x] = Piece(x, boardPieces[x]!.type, boardPieces[x]!.color);
+    }
   }
 }
 
@@ -578,32 +711,6 @@ void main() {
   print("id name DartChess");
   print("id author YourName");
   print("uciok");
-
-  // int? startfromSq = board.algebraicTo0x88("e2");
-
-  // int? startfromTosSq = board.algebraicTo0x88("e3");
-
-  // board.makeMove(startfromSq!, startfromTosSq!);
-
-  // startfromSq = board.algebraicTo0x88("e7");
-
-  // startfromTosSq = board.algebraicTo0x88("e5");
-
-  // board.makeMove(startfromSq!, startfromTosSq!);
-
-  // startfromSq = board.algebraicTo0x88("a2");
-
-  // startfromTosSq = board.algebraicTo0x88("a3");
-
-  // board.makeMove(startfromSq!, startfromTosSq!);
-
-  // startfromSq = board.algebraicTo0x88("e5");
-
-  // startfromTosSq = board.algebraicTo0x88("e4");
-
-  // board.makeMove(startfromSq!, startfromTosSq!);
-
-  // board.printBoard();
 
   while (true) {
     stdout.write(""); // Ensures prompt is ready
@@ -653,9 +760,20 @@ void main() {
         } else if (input.startsWith("go")) {
           print("Go command received: $input");
           UCIParser.parseGoCommand(board, input);
+          search(board, 4, 0);
+
+          //print("bestmove ${search(board)}");
         } else {
           print("Unknown command: $input");
         }
     }
   }
 }
+
+// void main() {
+//   Board board = Board();
+//   search(board, 7, 0);
+//   //print("bestmove ${search(board, 1, 0)}");
+//   // print("board state:");
+//   // board.printBoard();
+// }
