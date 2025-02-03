@@ -58,7 +58,7 @@ FCHnames=
 [Data]
 LastPGNEPDindex=1
 LastGameDate=2025.02.03
-LastGameTime=14:53:08
+LastGameTime=15:25:01
 Country=United States
 Site=IGLINTERNS5
 Hardware=Intel(R) Core(TM) i5-10500T CPU @ 2.30GHz with 7.8 GB Memory
@@ -67,9 +67,9 @@ Website=
 E-Mail=
 ArenaVersion=Arena 3.5.1
 FirstGameDate=2025.02.03
-FirstGameTime=14:50:52
+FirstGameTime=15:13:03
 [PairingResults]
-Board ------ SOS 5.1 for Arena=0?
+Board ------ SOS 5.1 for Arena=?
 [Participants]
 Engine1=Board
 Engine2=SOS 5.1 for Arena

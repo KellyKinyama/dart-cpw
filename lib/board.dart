@@ -46,6 +46,13 @@ class Board {
     _setupInitialPieces();
   }
 
+  factory Board.fromBoard(Board boardFrom) {
+    Board board = Board();
+    board.sideToMove = boardFrom.sideToMove;
+    board.fillPieces(boardFrom.pieces);
+    return board;
+  }
+
   void init() {
     sideToMove = Color.WHITE;
     pieces = List.filled(128, null); // 128 squares (null = empty)
@@ -706,74 +713,74 @@ class Board {
 //   }
 // }
 
-void main() {
-  Board board = Board();
-  print("id name DartChess");
-  print("id author YourName");
-  print("uciok");
-
-  while (true) {
-    stdout.write(""); // Ensures prompt is ready
-    String? input = stdin.readLineSync()?.trim();
-
-    if (input == null) continue;
-
-    // String strFrom = "${input[0]}${input[1]}";
-
-    // String strTo = "${input[2]}${input[3]}";
-
-    // int? fromSq = board.algebraicTo0x88(strFrom);
-
-    // int? fromTosSq = board.algebraicTo0x88(strTo);
-
-    // board.makeMove(fromSq!, fromTosSq!);
-    board.printBoard();
-
-    // int? sq0x88 = board.algebraicTo0x88(notation);
-
-    // print("index: $sq0x88");
-
-    // if (sq0x88 != null) {
-    //   print('$notation -> 0x88: 0x${sq0x88.toRadixString(16)}');
-    //   print(
-    //       'File: ${board.fileFrom0x88(sq0x88)}, Rank: ${board.rankFrom0x88(sq0x88)}');
-    // }
-
-    switch (input) {
-      case "uci":
-        print("id name DartChess");
-        print("id author YourName");
-        print("uciok");
-        break;
-      case "isready":
-        print("readyok");
-        break;
-      case "quit":
-        exit(0);
-
-      case "move":
-      default:
-        if (input.startsWith("position")) {
-          print("Position command received: $input");
-
-          UCIParser.parsePosition(board, input);
-        } else if (input.startsWith("go")) {
-          print("Go command received: $input");
-          UCIParser.parseGoCommand(board, input);
-          search(board, 4, 0);
-
-          //print("bestmove ${search(board)}");
-        } else {
-          print("Unknown command: $input");
-        }
-    }
-  }
-}
-
 // void main() {
 //   Board board = Board();
-//   search(board, 7, 0);
-//   //print("bestmove ${search(board, 1, 0)}");
-//   // print("board state:");
-//   // board.printBoard();
+//   print("id name DartChess");
+//   print("id author YourName");
+//   print("uciok");
+
+//   while (true) {
+//     stdout.write(""); // Ensures prompt is ready
+//     String? input = stdin.readLineSync()?.trim();
+
+//     if (input == null) continue;
+
+//     // String strFrom = "${input[0]}${input[1]}";
+
+//     // String strTo = "${input[2]}${input[3]}";
+
+//     // int? fromSq = board.algebraicTo0x88(strFrom);
+
+//     // int? fromTosSq = board.algebraicTo0x88(strTo);
+
+//     // board.makeMove(fromSq!, fromTosSq!);
+//     board.printBoard();
+
+//     // int? sq0x88 = board.algebraicTo0x88(notation);
+
+//     // print("index: $sq0x88");
+
+//     // if (sq0x88 != null) {
+//     //   print('$notation -> 0x88: 0x${sq0x88.toRadixString(16)}');
+//     //   print(
+//     //       'File: ${board.fileFrom0x88(sq0x88)}, Rank: ${board.rankFrom0x88(sq0x88)}');
+//     // }
+
+//     switch (input) {
+//       case "uci":
+//         print("id name DartChess");
+//         print("id author YourName");
+//         print("uciok");
+//         break;
+//       case "isready":
+//         print("readyok");
+//         break;
+//       case "quit":
+//         exit(0);
+
+//       case "move":
+//       default:
+//         if (input.startsWith("position")) {
+//           print("Position command received: $input");
+
+//           UCIParser.parsePosition(board, input);
+//         } else if (input.startsWith("go")) {
+//           print("Go command received: $input");
+//           UCIParser.parseGoCommand(board, input);
+//           search(board, 4, 0);
+
+//           //print("bestmove ${search(board)}");
+//         } else {
+//           print("Unknown command: $input");
+//         }
+//     }
+//   }
 // }
+
+void main() {
+  Board board = Board();
+  search(board, 12, 0);
+  //print("bestmove ${search(board, 1, 0)}");
+  // print("board state:");
+  // board.printBoard();
+}
